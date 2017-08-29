@@ -33,6 +33,16 @@ VkResult CreateDebugReportCallbackEXT(VkInstance instance, const VkDebugReportCa
 	}
 }
 
+struct QueueFamilyIndices
+{
+	int graphicsFamily = -1;
+
+	bool isComplete()
+	{
+		return graphicsFamily >= 0;
+	}
+};
+
 class HelloTriangleApplication 
 {
 public:
@@ -100,6 +110,7 @@ private:
 
 	VkInstance instance;
 	VkDebugReportCallbackEXT callback;
+	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
 
 	void initWindow()
 	{
@@ -155,6 +166,75 @@ private:
 	{
 		CreateVulkanInstance();
 		SetupDebugCallback();
+		PickPhysicalDevice();
+	}
+
+	void PickPhysicalDevice()
+	{
+		uint32_t deviceCount = 0;
+		vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
+		if (deviceCount == 0)
+		{
+			throw std::runtime_error("Failed to find a GPU with Vulkan support!");
+		}
+
+		std::vector<VkPhysicalDevice> devices(deviceCount);
+		vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
+
+		for (const auto& device : devices)
+		{
+			if (IsDeviceSuitable(device))
+			{
+				physicalDevice = device;
+				break;
+			}
+		}
+		if (physicalDevice == VK_NULL_HANDLE)
+		{
+			throw std::runtime_error("Failed to find a suitable GPU!");
+		}
+	}
+
+	bool IsDeviceSuitable(VkPhysicalDevice device)
+	{
+		VkPhysicalDeviceProperties deviceProperties;
+		vkGetPhysicalDeviceProperties(device, &deviceProperties);
+
+		VkPhysicalDeviceFeatures deviceFeatures;
+		vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+
+		QueueFamilyIndices indices = FindQueueFamilies(device);
+
+		return deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU &&
+			   deviceFeatures.geometryShader &&
+			   indices.isComplete();
+	}
+
+	QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device)
+	{
+		QueueFamilyIndices indices;
+
+		uint32_t queueFamilyCount = 0;
+		vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+
+		std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+		vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+		
+		int i = 0;
+		for (const auto& queueFamily : queueFamilies)
+		{
+			if (queueFamily.queueCount > 0 && queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+			{
+				indices.graphicsFamily = i;
+			}
+			if (indices.isComplete())
+			{
+				break;
+			}
+			i++;
+		}
+
+		return indices;
 	}
 
 	void SetupDebugCallback()
@@ -174,7 +254,7 @@ private:
 
 	void DestroyDebugReportCallbackEXT(VkInstance instance, VkDebugReportCallbackEXT callback, const VkAllocationCallbacks* pAllocator)
 	{
-		auto func = (PFN_vkDestroyDebugReportCallbackEXT)vkGetInstanceProcAddr(instance, "vkDestoryDebugReportCallbackEXT");
+		auto func = (PFN_vkDestroyDebugReportCallbackEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugReportCallbackEXT");
 		if (func != nullptr)
 		{
 			func(instance, callback, pAllocator);
